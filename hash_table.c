@@ -2,6 +2,9 @@
 #include <string.h>
 #include "hash_table.h"
 
+// set up address for any deleted items to not disrupt collision chain
+static ht_item HT_DELETED_ITEM = {NULL, NULL};
+
 // add new item to table w/ key and val as args
 static ht_item* ht_new_item(const char* k, const char* v){
     ht_item* i = malloc(sizeof(ht_item));
@@ -53,4 +56,60 @@ static int ht_hash(const char* s, const int a, const int m){
 static int get_hash(const char* s, const int num_buckets, const int attempt){
     const int hash_a = ht_hash(s, HT_PRIME_1, num_buckets);
     const int hash_b = ht_hash(s, HT_PRIME_2, num_buckets);
+    return (hash_a + (attempt*(hash_b+1))) % num_buckets; // add 1 to second hash because of collision
+}
+
+void ht_insert(ht_hash_table *ht, const char *key, const char *value)
+{
+    ht_item* item = ht_new_item(key, value);
+    int idx = get_hash(item->key, ht->size, 0);
+    ht_item* curr = ht->items[idx];
+    int i = 1;
+    while(curr != NULL && curr != &HT_DELETED_ITEM){
+        idx = get_hash(item->key, ht->size, i);
+        curr = ht->items[idx];
+        i++;
+    }
+    ht->items[idx] = item;
+    ht->count++;
+}
+
+char *ht_search(ht_hash_table *ht, const char *key)
+{
+    int idx = get_hash(key, ht->size, 0);
+    ht_item* item = ht->items[idx];
+    int i = 1;
+    while(item != NULL){
+        if(item != &HT_DELETED_ITEM){
+            if(strcmp(item->key, key) == 0){
+                return item->value; // found item in ht
+            }
+        }
+        // iterate to next item in ht
+        idx = get_hash(key, ht->size, i);
+        item = ht->items[idx];
+        i++;
+    }
+    // didn't find item
+    return NULL;
+}
+
+void ht_delete(ht_hash_table *ht, const char *key)
+{
+    // same process as search
+    int idx = get_hash(key, ht->size, 0);
+    ht_item* item = ht->items[idx];
+    int i=1;
+    while(item != NULL){
+        if(item != &HT_DELETED_ITEM){
+            if(strcmp(item->key, key) == 0){
+                ht_del_item(item); // if found, delete
+                ht->items[idx] = &HT_DELETED_ITEM;
+            }
+        }
+        idx = get_hash(key, ht->size, i);
+        item = ht->items[idx];
+        i++;
+   }
+   ht->count--;
 }
